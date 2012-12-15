@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"time"
+    "log"
 )
 
 var ErrCrcMismatch = errors.New("CRC-Mismatch")
@@ -72,6 +73,7 @@ func (r request) Write(w io.Writer) error {
 type message struct {
 	Length int32
 	Magic  byte
+	Att    byte
 	Crc    int32
 }
 
@@ -127,11 +129,13 @@ const MAX_BUFFER = 1024 * 1024
 func (r *Consumer) fill() error {
 	req := makeRequest(REQ_FETCH, r.topic, r.partition, r.offset, MAX_BUFFER)
 	if err := req.Write(r.conn); err != nil {
+        log.Println(err)
 		return err
 	}
 
 	resp := response{}
 	if err := binary.Read(r.conn, binary.BigEndian, &resp); err != nil {
+        log.Println(err)
 		return err
 	} else if resp.ErrorCode != 0 {
 		r.co.ReadBuffer.Reset()
@@ -140,7 +144,9 @@ func (r *Consumer) fill() error {
 
 	r.co.ReadBuffer.Reset()
 	_, err := io.CopyN(r.co.ReadBuffer, r.conn, int64(resp.Length-2))
-
+    if err != nil{
+        log.Println(err)
+    }
 	return err
 }
 
@@ -152,6 +158,7 @@ func (r *Consumer) Seek(offset int64) {
 func (r *Consumer) Read(buf []byte) (int, error) {
 	for r.co.ReadBuffer.Len() == 0 {
 		if err := r.fill(); err != nil {
+            log.Println(err)
 			return 0, err
 		}
 
@@ -161,27 +168,35 @@ func (r *Consumer) Read(buf []byte) (int, error) {
 
 		time.Sleep(100 * time.Millisecond)
 	}
-
+    //message:length magic (att) crc
 	msg := message{}
 	if err := binary.Read(r.co.ReadBuffer, binary.BigEndian, &msg); err != nil {
+        log.Println(err)
 		return 0, err
 	}
-
-	if len(buf) < int(msg.Length-5) {
-		return 9, io.ErrShortBuffer
+    //the length of message struct is 9
+    //magic + crc = 5
+    //magic + att + crc = 6
+    //len + magic + att + crc = 10
+	if len(buf) < int(msg.Length-6) {
+		return 10, io.ErrShortBuffer
 	}
 
-	n, err := r.co.ReadBuffer.Read(buf[:msg.Length-5])
+    //log.Println(msg)
+    //log.Println("len of buf",len(buf[:msg.Length-6]))
+    log.Println("magic:",msg.Magic)
+	n, err := r.co.ReadBuffer.Read(buf[:msg.Length-6])
 	if err != nil {
-		return 9 + n, err
+        log.Println(err)
+		return 10 + n, err
 	}
-
-	if crc32.ChecksumIEEE(buf[:msg.Length-5]) != uint32(msg.Crc) {
-		return 9 + n, ErrCrcMismatch
+    //log.Println("actually:",n)
+	if crc32.ChecksumIEEE(buf[:msg.Length-6]) != uint32(msg.Crc) {
+		return 10 + n, ErrCrcMismatch
 	}
 
 	r.offset += 4 + int64(msg.Length)
-	return 9 + n, nil
+	return 10 + n, nil
 }
 
 func (r Consumer) GetOffset() int64 {
