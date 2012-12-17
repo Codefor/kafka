@@ -172,6 +172,7 @@ func (r *Consumer) Fetch()(data []string,err error){
 		}else{
             //log.Println("empty fetch from kafka")
             //if the fetch return empty ,sleep a while and do again
+	    	//TODO 截断二进制指数退避算法 in CSMA/CD（载波监听多路接入冲突检测）协议
             time.Sleep(2000 * time.Millisecond)
         }
 	}
