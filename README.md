@@ -3,22 +3,21 @@
 ## Example
 
 A simple, go-like Go Kafka consumer. Use it like follows:
-
-	package main
+    package main
 
     import (
-    	"fmt"
-    	"github.com/nuance/kafka"
-   	)
+        "fmt"
+        "github.com/Codefor/kafka"
+    )
 
-   	func main() {
-   		r, _ := kafka.OpenConsumer("localhost:1234", "topic", 0,
-        kafka.OFF_NEWEST, kafka.DefaultReaderOptions())
+    func main() {
+        conn, _ := kafka.OpenConsumer("10.4.32.221:9092", "ddclick", 0,
+            kafka.OFF_NEWEST, kafka.DefaultConsumerOptions())
 
-   		buf := make([]byte, 1024)
-   		for _, err := r.Read(buf); err == nil; _, err = r.Read(buf) {
-   			fmt.Printf("'%s'", string(buf))
-	   	}	
+        data,_ := conn.Fetch()
+        for _,str := range data{
+            fmt.Println(str)
+        }
     }
 
 The kafka module exposes an io.ReadCloser-compatible interface:
